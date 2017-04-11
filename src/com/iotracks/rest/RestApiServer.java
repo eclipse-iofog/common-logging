@@ -24,8 +24,8 @@ public class RestApiServer implements Runnable {
     private final EventLoopGroup workerGroup = new NioEventLoopGroup(10);
     private final EventExecutorGroup executor = new DefaultEventExecutorGroup(10);
 
-    static final boolean SSL = System.getProperty("ssl") != null;
-    static final int PORT = 10555;
+    private static final boolean SSL = Boolean.parseBoolean(System.getProperty("ssl"));
+    private static final int PORT = 10555;
 
     public void run() {
         try {

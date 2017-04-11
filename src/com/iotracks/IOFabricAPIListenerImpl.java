@@ -1,6 +1,6 @@
 package com.iotracks;
 
-import com.iotracks.api.listener.IOFabricAPIListener;
+import com.iotracks.api.listener.IOFogAPIListener;
 import com.iotracks.db.LogStorage;
 import com.iotracks.elements.IOMessage;
 import com.iotracks.util.LogMessage;
@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class IOFabricAPIListenerImpl implements IOFabricAPIListener {
+public class IOFabricAPIListenerImpl implements IOFogAPIListener {
 
     private final Logger log = Logger.getLogger(IOFabricAPIListenerImpl.class.getName());
     private final MainLog mainLogInstance;

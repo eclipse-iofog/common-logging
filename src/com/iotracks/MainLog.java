@@ -1,6 +1,6 @@
 package com.iotracks;
 
-import com.iotracks.api.IOFabricClient;
+import com.iotracks.api.IOFogClient;
 import com.iotracks.db.LogStorage;
 import com.iotracks.rest.RestApiServer;
 import com.iotracks.util.LogMessage;
@@ -27,7 +27,7 @@ public class MainLog {
     private static JsonObject config = null;
     private static String containerId = "TEST_LOG_CONTAINER";
 
-    private static IOFabricClient ioFabricClient;
+    private static IOFogClient ioFabricClient;
     private static IOFabricAPIListenerImpl listener;
 
     private static ScheduledExecutorService cleanScheduler;
@@ -53,15 +53,7 @@ public class MainLog {
         if (StringUtil.isNullOrEmpty(containerId)) {
             System.err.println("Container Id is not specified. Please, use --id=XXXX parameter or set the id as SELFNAME=XXXX environment property");
         } else {
-            String ioFabricHost = System.getProperty("iofabric_host", "iofabric");
-            int ioFabricPort = 54321;
-            try {
-                ioFabricPort = Integer.parseInt(System.getProperty("iofabric_port", "54321"));
-            } catch (Exception e) {
-            /* default value 54321 will be used */
-            }
-
-            ioFabricClient = new IOFabricClient(ioFabricHost, ioFabricPort, containerId);
+            ioFabricClient = new IOFogClient(null, 0, containerId);
             listener = new IOFabricAPIListenerImpl(instance);
 
             updateConfig();
@@ -121,7 +113,7 @@ public class MainLog {
 
     private static void startCleaner(){
         System.out.println("MainLog.startCleaner");
-        scheduledFuture = cleanScheduler.scheduleWithFixedDelay(new MessageCleaner(), 0, logMessageTimeLimit, TimeUnit.MILLISECONDS);
+        scheduledFuture = cleanScheduler.scheduleWithFixedDelay(new MessageCleaner(), logMessageTimeLimit, logMessageTimeLimit, TimeUnit.SECONDS);
     }
 
     private static class MessageCleaner implements Runnable{
