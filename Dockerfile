@@ -1,0 +1,7 @@
+FROM alpine:latest
+#FROM hypriot/rpi-alpine-scratch
+
+COPY logging /go/bin/
+RUN mkdir /log
+WORKDIR /go/bin
+CMD ["./logging"]

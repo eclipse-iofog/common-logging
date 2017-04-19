@@ -2,10 +2,10 @@ package iofog_log
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
-	"fmt"
 )
 
 type LoggingRestHandler struct {
@@ -66,10 +66,24 @@ func (l *LoggingRestHandler) UpdateConfig(config map[string]interface{}) {
 	l.configMutex.Lock()
 	l.config = c
 	l.configMutex.Unlock()
-	if d, e := time.ParseDuration(fmt.Sprintf("%ds", c.CleanInterval)); c.CleanInterval != 0 && e == nil {
-		l.dbManager.SetCleanInterval(d)
+	useDefault := false
+	if len(c.CleanInterval) > 0 {
+		d, err := time.ParseDuration(fmt.Sprintf("%s", c.CleanInterval))
+		if d <= 0 {
+			logger.Printf("Unable to specify %s clean interval\n", c.CleanInterval)
+			useDefault = true
+		} else if err != nil {
+			logger.Printf("Error while parsing clean interval: %s.", err.Error())
+			useDefault = true
+		} else {
+			l.dbManager.SetCleanInterval(d)
+		}
 	} else {
-		l.dbManager.SetCleanInterval(DEFAULT_CLEAN_DURATION)
+		useDefault = true
+	}
+	if useDefault {
+		logger.Println("Using default value for clean interval")
+		l.dbManager.SetCleanInterval(DEFAULT_CLEAN_INTERVAL)
 	}
 }
 
@@ -88,7 +102,7 @@ func (l *LoggingRestHandler) isAuthorized(w http.ResponseWriter, r *http.Request
 	return false
 }
 func (l *LoggingRestHandler) checkMethodAndContent(method, contentType string,
-w http.ResponseWriter, r *http.Request) bool {
+	w http.ResponseWriter, r *http.Request) bool {
 	if r.Method != method {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return false

@@ -8,33 +8,33 @@ import (
 )
 
 const (
-	DB_LOCATION = "/home/sashayakovtseva/"
-	DB_NAME = "iofog.logs.db"
-	TABLE_NAME = "logs"
-	ID_COLUMN_NAME = "id"
+	DB_LOCATION              = "/log/"
+	DB_NAME                  = "iofog.logs.db"
+	TABLE_NAME               = "logs"
+	ID_COLUMN_NAME           = "id"
 	PUBLISHER_ID_COLUMN_NAME = "publisher"
-	LOG_LEVEL_COLUMN_NAME = "level"
-	LOG_MESSAGE_COLUMN_NAME = "message"
-	TIMESTAMP_COLUMN_NAME = "timestamp"
-	APPLICATION_JSON = "application/json"
-	TEXT_PLAN = "text/plain"
-	CONTENT_TYPE = "Content-Type"
-	DEFAULT_PAGE_SIZE = 20
-	DEFAULT_ORDER_BY = TIMESTAMP_COLUMN_NAME
-	DEFAULT_CLEAN_DURATION = time.Second * 20
+	LOG_LEVEL_COLUMN_NAME    = "level"
+	LOG_MESSAGE_COLUMN_NAME  = "message"
+	TIMESTAMP_COLUMN_NAME    = "timestamp"
+	APPLICATION_JSON         = "application/json"
+	TEXT_PLAN                = "text/plain"
+	CONTENT_TYPE             = "Content-Type"
+	DEFAULT_PAGE_SIZE        = 20
+	DEFAULT_ORDER_BY         = TIMESTAMP_COLUMN_NAME
+	DEFAULT_CLEAN_INTERVAL   = time.Hour * 24 * 2
 
 	ACCESS_TOKEN = "Access-Token"
-	ASC = "ASC"
-	DESC = "DESC"
+	ASC          = "ASC"
+	DESC         = "DESC"
 
 	CRITICAL = 50
-	FATAL = CRITICAL
-	ERROR = 40
-	WARNING = 30
-	WARN = WARNING
-	INFO = 20
-	DEBUG = 10
-	NOTSET = 0
+	FATAL    = CRITICAL
+	ERROR    = 40
+	WARNING  = 30
+	WARN     = WARNING
+	INFO     = 20
+	DEBUG    = 10
+	NOTSET   = 0
 
 	LOGGER_CONTAINER_PORT = 10555
 )
@@ -99,7 +99,7 @@ type GetLogsRequest struct {
 	Message        string   `json:"message"`
 	Page           int      `json:"page"`
 	OrderBy        []string `json:"orderby"`
-	Desc           bool     `json:"desc"`
+	Asc            bool     `json:"asc"`
 	PageSize       int      `json:"pagesize"`
 }
 
@@ -116,5 +116,5 @@ type AddLogRequest struct {
 
 type LoggingConfig struct {
 	AccessTokens  []string `json:"access_tokens"`
-	CleanInterval int `json:"cleaninterval"`
+	CleanInterval string   `json:"cleaninterval"`
 }

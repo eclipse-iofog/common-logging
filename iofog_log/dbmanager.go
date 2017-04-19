@@ -2,20 +2,21 @@ package iofog_log
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"strings"
-	"errors"
 	"time"
 )
 
 type DBManager struct {
 	db          *sql.DB
 	cleanTicker *time.Ticker
+	stopChannel chan bool
 }
 
 func NewDBManager() (*DBManager, error) {
-	db, err := sql.Open("sqlite3", DB_LOCATION + DB_NAME)
+	db, err := sql.Open("sqlite3", DB_LOCATION+DB_NAME)
 	if err != nil {
 		return nil, err
 	}
@@ -38,24 +39,8 @@ func (manager *DBManager) Close() {
 	}
 }
 
-func (manager *DBManager) Delete(publishers []string, timeframeend int64) (int64, error) {
-	delete_sql := PREPARED_DELETE
-	and := false
-	if len(publishers) > 0 {
-		delete_sql += fmt.Sprint(" where ", PUBLISHER_ID_COLUMN_NAME,
-			" in (", strings.Join(publishers, ", "), ")")
-		and = true
-	}
-	if timeframeend != 0 {
-		if and {
-			delete_sql += " and "
-		} else {
-			delete_sql += " where "
-		}
-		delete_sql += fmt.Sprint(TIMESTAMP_COLUMN_NAME, " <= ", timeframeend)
-	}
-
-	result, err := manager.db.Exec(delete_sql)
+func (manager *DBManager) Delete() (int64, error) {
+	result, err := manager.db.Exec(PREPARED_DELETE)
 	if err != nil {
 		return 0, err
 	}
@@ -121,28 +106,28 @@ func buildQuery(request *GetLogsRequest) (string, error) {
 	if !ok {
 		level = NOTSET
 	}
-	if (request.Page == 0) {
+	if request.Page == 0 {
 		request.Page += 1
 	}
 
 	select_stmt := fmt.Sprintf(`%s from %s where %s>=%d `,
 		PREPARED_SELECT, TABLE_NAME, LOG_LEVEL_COLUMN_NAME, level)
 
-	if (len(request.Publishers) > 0) {
+	if len(request.Publishers) > 0 {
 		select_stmt += fmt.Sprintf(` and %s in ("%s") `,
 			PUBLISHER_ID_COLUMN_NAME, strings.Join(request.Publishers, `", "`))
 	}
-	if (request.TimeFrameStart != 0) {
+	if request.TimeFrameStart != 0 {
 		select_stmt += fmt.Sprintf(` and %s>=%d `, TIMESTAMP_COLUMN_NAME, request.TimeFrameStart)
 	}
-	if (request.TimeFrameEnd != 0) {
+	if request.TimeFrameEnd != 0 {
 		select_stmt += fmt.Sprintf(` and %s<=%d `, TIMESTAMP_COLUMN_NAME, request.TimeFrameEnd)
 	}
-	if (len(request.Message) > 0) {
+	if len(request.Message) > 0 {
 		select_stmt += fmt.Sprintf(` and %s like "%%%s%%"`, LOG_MESSAGE_COLUMN_NAME, request.Message)
 	}
-	if (len(request.OrderBy) > 0) {
-		outer:
+	if len(request.OrderBy) > 0 {
+	outer:
 		for _, order := range request.OrderBy {
 			for _, field := range ORDER_BY_FIELDS {
 				if order == field {
@@ -155,36 +140,43 @@ func buildQuery(request *GetLogsRequest) (string, error) {
 	} else {
 		select_stmt += fmt.Sprintf(` order by %s `, DEFAULT_ORDER_BY)
 	}
-	if (request.Desc) {
-		select_stmt += fmt.Sprintf(` %s `, DESC)
-	} else {
+	if request.Asc {
 		select_stmt += fmt.Sprintf(` %s `, ASC)
+	} else {
+		select_stmt += fmt.Sprintf(` %s `, DESC)
 
 	}
 
 	if request.PageSize == 0 {
 		request.PageSize = DEFAULT_PAGE_SIZE
 	}
-	select_stmt += fmt.Sprintf(` limit %d offset %d `, request.PageSize, (request.Page - 1 ) * request.PageSize)
+	select_stmt += fmt.Sprintf(` limit %d offset %d `, request.PageSize, (request.Page-1)*request.PageSize)
 	return select_stmt, nil
 }
 
-// todo check dynamic update of interval
-func (manager *DBManager) cleanRoutine() {
-	for range manager.cleanTicker.C {
-		if deleted, err := manager.Delete(nil, 0); err != nil {
-			logger.Println("Error while cleaning db: " + err.Error())
-		} else {
-			logger.Printf("Deleted rows: %d\n", deleted)
+func (manager *DBManager) cleanRoutine(stopChannel <-chan bool) {
+	defer logger.Println("Ticker stopped")
+	for {
+		select {
+		case <-manager.cleanTicker.C:
+			if deleted, err := manager.Delete(); err != nil {
+				logger.Println("Error while cleaning db: " + err.Error())
+			} else {
+				logger.Printf("Deleted rows: %d\n", deleted)
+			}
+		case <-stopChannel:
+			return
 		}
 	}
-	logger.Println("Stopped ticker")
 }
 
 func (manager *DBManager) SetCleanInterval(d time.Duration) {
 	if manager.cleanTicker != nil {
 		manager.cleanTicker.Stop()
+		close(manager.stopChannel)
 	}
+	logger.Printf("Setting cleaning interval of %v", d)
 	manager.cleanTicker = time.NewTicker(d)
-	go manager.cleanRoutine()
+	manager.stopChannel = make(chan bool)
+	go manager.cleanRoutine(manager.stopChannel)
 }

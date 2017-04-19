@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/iotracks/logging-system-container/iofog_log"
-	sdk "github.com/iotracks/container-sdk-go"
-	"net/http"
 	"fmt"
+	sdk "github.com/iotracks/container-sdk-go"
+	"github.com/iotracks/logging-system-container/iofog_log"
 	"log"
+	"net/http"
 )
 
 var (
@@ -29,13 +29,15 @@ func main() {
 
 	signal := client.EstablishControlWsConnection(0)
 	go func() {
-		select {
-		case <-signal:
-			config, err := client.GetConfig()
-			if err != nil {
-				log.Printf("Error while updating config: %s", err.Error())
+		for {
+			select {
+			case <-signal:
+				config, err := client.GetConfig()
+				if err != nil {
+					log.Printf("Error while updating config: %s", err.Error())
+				}
+				handler.UpdateConfig(config)
 			}
-			handler.UpdateConfig(config)
 		}
 	}()
 
