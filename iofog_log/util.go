@@ -106,7 +106,7 @@ type GetLogsRequest struct {
 type GetLogsResponse struct {
 	Logs     []LogMessage `json:"logs"`
 	Size     int          `json:"size"`
-	PageNum  int          `json:"pagenum"`
+	PageNum  int          `json:"page"`
 	PageSize int          `json:"pagesize"`
 }
 
