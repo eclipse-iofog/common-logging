@@ -1,120 +1,119 @@
 package iofog_log
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
-	"os"
+	"net/http"
+	"strings"
 	"time"
 )
 
-const (
-	DB_LOCATION              = "/log/"
-	DB_NAME                  = "iofog.logs.db"
-	TABLE_NAME               = "logs"
-	ID_COLUMN_NAME           = "id"
-	PUBLISHER_ID_COLUMN_NAME = "publisher"
-	LOG_LEVEL_COLUMN_NAME    = "level"
-	LOG_MESSAGE_COLUMN_NAME  = "message"
-	TIMESTAMP_COLUMN_NAME    = "timestamp"
-	APPLICATION_JSON         = "application/json"
-	TEXT_PLAN                = "text/plain"
-	CONTENT_TYPE             = "Content-Type"
-	DEFAULT_PAGE_SIZE        = 20
-	DEFAULT_ORDER_BY         = TIMESTAMP_COLUMN_NAME
-	DEFAULT_CLEAN_INTERVAL   = time.Hour * 24 * 2
-
-	ACCESS_TOKEN = "Access-Token"
-	ASC          = "ASC"
-	DESC         = "DESC"
-
-	CRITICAL = 50
-	FATAL    = CRITICAL
-	ERROR    = 40
-	WARNING  = 30
-	WARN     = WARNING
-	INFO     = 20
-	DEBUG    = 10
-	NOTSET   = 0
-
-	LOGGER_CONTAINER_PORT = 10555
-)
-
-var (
-	_levelNames = map[interface{}]interface{}{
-		CRITICAL:   "CRITICAL",
-		ERROR:      "ERROR",
-		WARNING:    "WARNING",
-		INFO:       "INFO",
-		DEBUG:      "DEBUG",
-		NOTSET:     "NOTSET",
-		"CRITICAL": CRITICAL,
-		"FATAL":    FATAL,
-		"ERROR":    ERROR,
-		"WARN":     WARN,
-		"WARNING":  WARNING,
-		"INFO":     INFO,
-		"DEBUG":    DEBUG,
-		"NOTSET":   NOTSET,
-		"":         NOTSET,
+func buildQuery(request *GetLogsRequest) (string, error) {
+	level, ok := _levelNames[strings.ToUpper(request.LogLevel)]
+	if !ok {
+		level = NOTSET
+	}
+	if request.Page == 0 {
+		request.Page += 1
 	}
 
-	ORDER_BY_FIELDS = []string{PUBLISHER_ID_COLUMN_NAME, LOG_LEVEL_COLUMN_NAME,
-		LOG_MESSAGE_COLUMN_NAME, TIMESTAMP_COLUMN_NAME}
+	select_stmt := fmt.Sprintf(`%s from %s where %s>=%d `,
+		PREPARED_SELECT, TABLE_NAME, LOG_LEVEL_COLUMN_NAME, level)
 
-	PREPARED_CREATE_TABLE = fmt.Sprintf(`create table if not exists %s(%s INTEGER PRIMARY KEY AUTOINCREMENT,
-							                   %s TEXT NOT NULL CHECK(%s <> ""),
-							                   %s TEXT NOT NULL CHECK(%s <> ""),
-							                   %s INTEGER NOT NULL,
-							                   %s INTEGER NOT NULL)`,
-		TABLE_NAME, ID_COLUMN_NAME, PUBLISHER_ID_COLUMN_NAME, PUBLISHER_ID_COLUMN_NAME,
-		LOG_MESSAGE_COLUMN_NAME, LOG_MESSAGE_COLUMN_NAME,
-		LOG_LEVEL_COLUMN_NAME, TIMESTAMP_COLUMN_NAME)
+	if len(request.Publishers) > 0 {
+		select_stmt += fmt.Sprintf(` and %s in ("%s") `,
+			PUBLISHER_ID_COLUMN_NAME, strings.Join(request.Publishers, `", "`))
+	}
+	if request.TimeFrameStart != 0 {
+		select_stmt += fmt.Sprintf(` and %s>=%d `, TIMESTAMP_COLUMN_NAME, request.TimeFrameStart)
+	}
+	if request.TimeFrameEnd != 0 {
+		select_stmt += fmt.Sprintf(` and %s<=%d `, TIMESTAMP_COLUMN_NAME, request.TimeFrameEnd)
+	}
+	if len(request.Message) > 0 {
+		select_stmt += fmt.Sprintf(` and %s like "%%%s%%"`, LOG_MESSAGE_COLUMN_NAME, request.Message)
+	}
+	if len(request.OrderBy) > 0 {
+	outer:
+		for _, order := range request.OrderBy {
+			for _, field := range ORDER_BY_FIELDS {
+				if order == field {
+					continue outer
+				}
+			}
+			return "", errors.New("No such column: " + order)
+		}
+		select_stmt += fmt.Sprintf(` order by %s `, strings.Join(request.OrderBy, `, `))
+	} else {
+		select_stmt += fmt.Sprintf(` order by %s `, DEFAULT_ORDER_BY)
+	}
+	if request.Asc {
+		select_stmt += fmt.Sprintf(` %s `, ASC)
+	} else {
+		select_stmt += fmt.Sprintf(` %s `, DESC)
 
-	PREPARED_INSERT = fmt.Sprintf(`insert into %s(%s,%s,%s,%s) values(?, ?, ?, ?)`,
-		TABLE_NAME, PUBLISHER_ID_COLUMN_NAME, LOG_LEVEL_COLUMN_NAME,
-		LOG_MESSAGE_COLUMN_NAME, TIMESTAMP_COLUMN_NAME)
+	}
 
-	PREPARED_DELETE = fmt.Sprint("delete from ", TABLE_NAME)
-
-	PREPARED_SELECT = fmt.Sprintf("select %s,%s,%s,%s", PUBLISHER_ID_COLUMN_NAME, LOG_MESSAGE_COLUMN_NAME,
-		LOG_LEVEL_COLUMN_NAME, TIMESTAMP_COLUMN_NAME)
-)
-
-var (
-	logger = log.New(os.Stderr, "", log.LstdFlags)
-)
-
-type LogMessage struct {
-	Publisher string `json:"publisher"`
-	TimeStamp int64  `json:"timestamp"` // will be received
-	Level     string `json:"level"`
-	Message   string `json:"message"`
+	if request.PageSize == 0 {
+		request.PageSize = DEFAULT_PAGE_SIZE
+	}
+	select_stmt += fmt.Sprintf(` limit %d offset %d `, request.PageSize, (request.Page-1)*request.PageSize)
+	return select_stmt, nil
 }
 
-type GetLogsRequest struct {
-	TimeFrameStart int64    `json:"timeframestart"`
-	TimeFrameEnd   int64    `json:"timeframeend"`
-	Publishers     []string `json:"publishers"`
-	LogLevel       string   `json:"level"`
-	Message        string   `json:"message"`
-	Page           int      `json:"page"`
-	OrderBy        []string `json:"orderby"`
-	Asc            bool     `json:"asc"`
-	PageSize       int      `json:"pagesize"`
+func getJsonBody(w http.ResponseWriter, r *http.Request, decoded interface{}) bool {
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(decoded)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return false
+	}
+	return true
 }
 
-type GetLogsResponse struct {
-	Logs     []LogMessage `json:"logs"`
-	Size     int          `json:"size"`
-	PageNum  int          `json:"page"`
-	PageSize int          `json:"pagesize"`
+func checkMethodAndContent(method, contentType string, w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != method {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return false
+	}
+	if r.Header.Get(CONTENT_TYPE) != contentType {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		return false
+	}
+	return true
 }
 
-type AddLogRequest struct {
-	LogMessage
+func isAuthorized(accessTokens []string, w http.ResponseWriter, r *http.Request) bool {
+	accessToken := r.Header.Get(ACCESS_TOKEN)
+	for _, token := range accessTokens {
+		if accessToken == token {
+			return true
+		}
+	}
+	w.WriteHeader(http.StatusUnauthorized)
+	return false
 }
 
-type LoggingConfig struct {
-	AccessTokens  []string `json:"access_tokens"`
-	CleanInterval string   `json:"cleaninterval"`
+func parseDuration(duration, description string, defaultDuration time.Duration) time.Duration {
+	useDefault := false
+	var parsed time.Duration
+	var err error
+	if len(duration) > 0 {
+		parsed, err = time.ParseDuration(fmt.Sprintf("%s", duration))
+		if err != nil {
+			logger.Printf("Error while parsing %s: %s.", description, err.Error())
+			useDefault = true
+		} else if parsed <= 0 {
+			logger.Printf("Unable to specify %s as %s\n", duration, description)
+			useDefault = true
+		}
+	} else {
+		useDefault = true
+	}
+	if useDefault {
+		logger.Printf("Using default value for %s\n", description)
+		parsed = defaultDuration
+	}
+	return parsed
 }

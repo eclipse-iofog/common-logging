@@ -16,7 +16,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	handler, err := iofog_log.NewRestHandler()
+	logSystem, err := iofog_log.New()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -24,7 +24,7 @@ func main() {
 	if config, err := client.GetConfig(); err != nil {
 		log.Fatal("Unable to retrieve initial config", err.Error())
 	} else {
-		handler.UpdateConfig(config)
+		logSystem.UpdateConfig(config)
 	}
 
 	signal := client.EstablishControlWsConnection(0)
@@ -36,12 +36,13 @@ func main() {
 				if err != nil {
 					log.Printf("Error while updating config: %s", err.Error())
 				}
-				handler.UpdateConfig(config)
+				logSystem.UpdateConfig(config)
 			}
 		}
 	}()
 
-	http.HandleFunc("/logs/get", handler.HandleGetLogs)
-	http.HandleFunc("/logs/add", handler.HandlePostLog)
+	http.HandleFunc("/logs/get", logSystem.RestHandler.HandleGetLogs)
+	http.HandleFunc("/logs/add", logSystem.RestHandler.HandlePostLog)
+	http.HandleFunc("/logs/ws", logSystem.WsHandler.HandleWsConnection)
 	http.ListenAndServe(fmt.Sprintf(":%d", iofog_log.LOGGER_CONTAINER_PORT), nil)
 }

@@ -3,7 +3,6 @@ package iofog_log
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"strings"
 	"time"
@@ -15,8 +14,8 @@ type DBManager struct {
 	stopChannel chan bool
 }
 
-func NewDBManager() (*DBManager, error) {
-	db, err := sql.Open("sqlite3", DB_LOCATION+DB_NAME)
+func newDBManager() (*DBManager, error) {
+	db, err := sql.Open("sqlite3", DB_LOCATION + DB_NAME)
 	if err != nil {
 		return nil, err
 	}
@@ -39,15 +38,18 @@ func (manager *DBManager) Close() {
 	}
 }
 
-func (manager *DBManager) Delete() (int64, error) {
-	result, err := manager.db.Exec(PREPARED_DELETE)
+func (manager *DBManager) clearDB(ttl time.Duration) (int64, error) {
+	timestamp_end := ttl.Nanoseconds() / 1000
+	logger.Printf("Edge timestamp for deletion is %d\n", timestamp_end)
+	delete_stmt := PREPARED_DELETE + string(timestamp_end)
+	result, err := manager.db.Exec(delete_stmt)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-func (manager *DBManager) Insert(msg *LogMessage) (int64, error) {
+func (manager *DBManager) insert(msg *LogMessage) (int64, error) {
 	stmt, err := manager.db.Prepare(PREPARED_INSERT)
 	if err != nil {
 		return 0, errors.New("Error while preparing instert: " + err.Error())
@@ -64,7 +66,7 @@ func (manager *DBManager) Insert(msg *LogMessage) (int64, error) {
 	return result.LastInsertId()
 }
 
-func (manager *DBManager) Query(request *GetLogsRequest) (*GetLogsResponse, error) {
+func (manager *DBManager) query(request *GetLogsRequest) (*GetLogsResponse, error) {
 	select_stmt, err := buildQuery(request)
 	if err != nil {
 		return nil, err
@@ -101,65 +103,12 @@ func (manager *DBManager) Query(request *GetLogsRequest) (*GetLogsResponse, erro
 
 }
 
-func buildQuery(request *GetLogsRequest) (string, error) {
-	level, ok := _levelNames[strings.ToUpper(request.LogLevel)]
-	if !ok {
-		level = NOTSET
-	}
-	if request.Page == 0 {
-		request.Page += 1
-	}
-
-	select_stmt := fmt.Sprintf(`%s from %s where %s>=%d `,
-		PREPARED_SELECT, TABLE_NAME, LOG_LEVEL_COLUMN_NAME, level)
-
-	if len(request.Publishers) > 0 {
-		select_stmt += fmt.Sprintf(` and %s in ("%s") `,
-			PUBLISHER_ID_COLUMN_NAME, strings.Join(request.Publishers, `", "`))
-	}
-	if request.TimeFrameStart != 0 {
-		select_stmt += fmt.Sprintf(` and %s>=%d `, TIMESTAMP_COLUMN_NAME, request.TimeFrameStart)
-	}
-	if request.TimeFrameEnd != 0 {
-		select_stmt += fmt.Sprintf(` and %s<=%d `, TIMESTAMP_COLUMN_NAME, request.TimeFrameEnd)
-	}
-	if len(request.Message) > 0 {
-		select_stmt += fmt.Sprintf(` and %s like "%%%s%%"`, LOG_MESSAGE_COLUMN_NAME, request.Message)
-	}
-	if len(request.OrderBy) > 0 {
-	outer:
-		for _, order := range request.OrderBy {
-			for _, field := range ORDER_BY_FIELDS {
-				if order == field {
-					continue outer
-				}
-			}
-			return "", errors.New("No such column: " + order)
-		}
-		select_stmt += fmt.Sprintf(` order by %s `, strings.Join(request.OrderBy, `, `))
-	} else {
-		select_stmt += fmt.Sprintf(` order by %s `, DEFAULT_ORDER_BY)
-	}
-	if request.Asc {
-		select_stmt += fmt.Sprintf(` %s `, ASC)
-	} else {
-		select_stmt += fmt.Sprintf(` %s `, DESC)
-
-	}
-
-	if request.PageSize == 0 {
-		request.PageSize = DEFAULT_PAGE_SIZE
-	}
-	select_stmt += fmt.Sprintf(` limit %d offset %d `, request.PageSize, (request.Page-1)*request.PageSize)
-	return select_stmt, nil
-}
-
-func (manager *DBManager) cleanRoutine(stopChannel <-chan bool) {
+func (manager *DBManager) cleanRoutine(stopChannel <-chan bool, ttl time.Duration) {
 	defer logger.Println("Ticker stopped")
 	for {
 		select {
 		case <-manager.cleanTicker.C:
-			if deleted, err := manager.Delete(); err != nil {
+			if deleted, err := manager.clearDB(ttl); err != nil {
 				logger.Println("Error while cleaning db: " + err.Error())
 			} else {
 				logger.Printf("Deleted rows: %d\n", deleted)
@@ -170,13 +119,14 @@ func (manager *DBManager) cleanRoutine(stopChannel <-chan bool) {
 	}
 }
 
-func (manager *DBManager) SetCleanInterval(d time.Duration) {
+func (manager *DBManager) setCleanInterval(frequency, ttl time.Duration) {
 	if manager.cleanTicker != nil {
 		manager.cleanTicker.Stop()
 		close(manager.stopChannel)
 	}
-	logger.Printf("Setting cleaning interval of %v", d)
-	manager.cleanTicker = time.NewTicker(d)
+	logger.Printf("New cleaning frequency is %v", frequency)
+	logger.Printf("New ttl is %v", ttl)
+	manager.cleanTicker = time.NewTicker(frequency)
 	manager.stopChannel = make(chan bool)
-	go manager.cleanRoutine(manager.stopChannel)
+	go manager.cleanRoutine(manager.stopChannel, ttl)
 }
