@@ -26,7 +26,7 @@ func (l *LoggingRestHandler) HandleGetLogs(w http.ResponseWriter, r *http.Reques
 		l.configMutex.RLock()
 		config = l.config
 		l.configMutex.RUnlock()
-		if getJsonBody(w, r, &req) && isAuthorized(config.AccessTokens, w, r) {
+		if isAuthorized(config.AccessTokens, w, r) && getJsonBody(w, r, &req) {
 			if resp, err := l.dbManager.query(&req); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 			} else if err := json.NewEncoder(w).Encode(resp); err != nil {
@@ -44,7 +44,7 @@ func (l *LoggingRestHandler) HandlePostLog(w http.ResponseWriter, r *http.Reques
 		l.configMutex.RLock()
 		config = l.config
 		l.configMutex.RUnlock()
-		if getJsonBody(w, r, &req) && isAuthorized(config.AccessTokens, w, r) {
+		if isAuthorized(config.AccessTokens, w, r) && getJsonBody(w, r, &req) {
 			if _, err := l.dbManager.insert(&req.LogMessage); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 			}

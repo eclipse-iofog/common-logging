@@ -6,6 +6,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"strings"
 	"time"
+	"fmt"
 )
 
 type DBManager struct {
@@ -39,9 +40,9 @@ func (manager *DBManager) Close() {
 }
 
 func (manager *DBManager) clearDB(ttl time.Duration) (int64, error) {
-	timestamp_end := ttl.Nanoseconds() / 1000
+	timestamp_end := (time.Now().Add(- ttl)).UnixNano() / 1000000
 	logger.Printf("Edge timestamp for deletion is %d\n", timestamp_end)
-	delete_stmt := PREPARED_DELETE + string(timestamp_end)
+	delete_stmt := fmt.Sprint(PREPARED_DELETE, timestamp_end)
 	result, err := manager.db.Exec(delete_stmt)
 	if err != nil {
 		return 0, err

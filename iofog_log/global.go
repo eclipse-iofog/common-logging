@@ -37,6 +37,8 @@ const (
 	NOTSET   = 0
 
 	LOGGER_CONTAINER_PORT = 10555
+
+	CODE_ACK            = 0xB
 )
 
 var (
