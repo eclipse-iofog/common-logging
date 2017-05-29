@@ -36,7 +36,7 @@ const (
 	DEBUG    = 10
 	NOTSET   = 0
 
-	LOGGER_CONTAINER_PORT = 10555
+	LOGGER_CONTAINER_PORT = 54322
 
 	CODE_ACK            = 0xB
 )
