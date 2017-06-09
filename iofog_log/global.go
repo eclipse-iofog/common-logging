@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	DB_LOCATION              = "/log/"
+	DB_LOCATION              = "./log/"
 	DB_NAME                  = "iofog.logs.db"
 	TABLE_NAME               = "logs"
 	ID_COLUMN_NAME           = "id"
@@ -38,7 +38,7 @@ const (
 
 	LOGGER_CONTAINER_PORT = 54322
 
-	CODE_ACK            = 0xB
+	CODE_ACK = 0xB
 )
 
 var (
@@ -68,10 +68,11 @@ var (
 							                   %s TEXT NOT NULL CHECK(%s <> ""),
 							                   %s TEXT NOT NULL CHECK(%s <> ""),
 							                   %s INTEGER NOT NULL,
-							                   %s INTEGER NOT NULL)`,
+							                   %s INTEGER NOT NULL CHECK(%s > 0))`,
 		TABLE_NAME, ID_COLUMN_NAME, PUBLISHER_ID_COLUMN_NAME, PUBLISHER_ID_COLUMN_NAME,
 		LOG_MESSAGE_COLUMN_NAME, LOG_MESSAGE_COLUMN_NAME,
-		LOG_LEVEL_COLUMN_NAME, TIMESTAMP_COLUMN_NAME)
+		LOG_LEVEL_COLUMN_NAME,
+		TIMESTAMP_COLUMN_NAME, TIMESTAMP_COLUMN_NAME)
 
 	PREPARED_INSERT = fmt.Sprintf(`insert into %s(%s,%s,%s,%s) values(?, ?, ?, ?)`,
 		TABLE_NAME, PUBLISHER_ID_COLUMN_NAME, LOG_LEVEL_COLUMN_NAME,
