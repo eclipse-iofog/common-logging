@@ -12,7 +12,7 @@ import (
 type DBManager struct {
 	db          *sql.DB
 	cleanTicker *time.Ticker
-	stopChannel chan bool
+	stopChannel chan int
 }
 
 func newDBManager() (*DBManager, error) {
@@ -23,6 +23,7 @@ func newDBManager() (*DBManager, error) {
 
 	manager := new(DBManager)
 	manager.db = db
+	manager.stopChannel = make(chan int)
 	_, err = db.Exec(PREPARED_CREATE_TABLE)
 	if err != nil {
 		return nil, err
@@ -104,8 +105,11 @@ func (manager *DBManager) query(request *GetLogsRequest) (*GetLogsResponse, erro
 
 }
 
-func (manager *DBManager) cleanRoutine(stopChannel <-chan bool, ttl time.Duration) {
-	defer logger.Println("Ticker stopped")
+func (manager *DBManager) cleanRoutine(ttl time.Duration) {
+	defer func() {
+		manager.stopChannel <- 0
+	}()
+	defer logger.Println("Clean watcher stopped")
 	for {
 		select {
 		case <-manager.cleanTicker.C:
@@ -114,7 +118,7 @@ func (manager *DBManager) cleanRoutine(stopChannel <-chan bool, ttl time.Duratio
 			} else {
 				logger.Printf("Deleted rows: %d\n", deleted)
 			}
-		case <-stopChannel:
+		case <-manager.stopChannel:
 			return
 		}
 	}
@@ -123,11 +127,11 @@ func (manager *DBManager) cleanRoutine(stopChannel <-chan bool, ttl time.Duratio
 func (manager *DBManager) setCleanInterval(frequency, ttl time.Duration) {
 	if manager.cleanTicker != nil {
 		manager.cleanTicker.Stop()
-		close(manager.stopChannel)
+		manager.stopChannel <- 0
+		<-manager.stopChannel
 	}
 	logger.Printf("New cleaning frequency is %v", frequency)
 	logger.Printf("New ttl is %v", ttl)
 	manager.cleanTicker = time.NewTicker(frequency)
-	manager.stopChannel = make(chan bool)
-	go manager.cleanRoutine(manager.stopChannel, ttl)
+	go manager.cleanRoutine(ttl)
 }
