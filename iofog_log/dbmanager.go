@@ -3,45 +3,68 @@ package iofog_log
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"strings"
 	"time"
-	"fmt"
 )
 
 type DBManager struct {
-	db          *sql.DB
-	cleanTicker *time.Ticker
-	stopChannel chan int
+	db             *sql.DB
+	cleanTicker    *time.Ticker
+	stopChannel    chan int
+	preparedInsert *sql.Stmt
 }
 
 func newDBManager() (*DBManager, error) {
-	db, err := sql.Open("sqlite3", DB_LOCATION + DB_NAME)
+	db, err := sql.Open("sqlite3", "file:" + DB_LOCATION + DB_NAME + "?cache=shared&mode=rwc")
 	if err != nil {
 		return nil, err
 	}
 
+	//db.SetMaxOpenConns(1)
 	manager := new(DBManager)
 	manager.db = db
 	manager.stopChannel = make(chan int)
-	_, err = db.Exec(PREPARED_CREATE_TABLE)
-	if err != nil {
+	if _, err = db.Exec(PREPARED_CREATE_TABLE); err != nil {
+		db.Close()
 		return nil, err
 	}
+	if _, err = db.Exec("PRAGMA journal_mode=WAL;"); err != nil {
+		logger.Println("Error while enabling WAL:", err.Error())
+	}
+	if _, err = db.Exec("PRAGMA synchronous=NORMAL;"); err != nil {
+		logger.Println("Error while setting NORMAL synchronous:", err.Error())
+	}
 
+	if stmt, err := manager.db.Prepare(PREPARED_INSERT); err != nil {
+		db.Close()
+		return nil, errors.New("Error while preparing instert:" + err.Error())
+	} else {
+		manager.preparedInsert = stmt
+	}
 	return manager, nil
 }
 
 func (manager *DBManager) Close() {
-	if err := manager.db.Close(); err != nil {
-		logger.Println("Error while closing db", err)
-	} else {
-		logger.Println("DB successfully closed")
+	if manager.preparedInsert != nil {
+		if err := manager.preparedInsert.Close(); err != nil {
+			logger.Println("Error while closing prepared insert statement", err)
+		} else {
+			logger.Println("Prepared insert statement successfully closed")
+		}
+	}
+	if manager.db != nil {
+		if err := manager.db.Close(); err != nil {
+			logger.Println("Error while closing db", err)
+		} else {
+			logger.Println("DB successfully closed")
+		}
 	}
 }
 
 func (manager *DBManager) clearDB(ttl time.Duration) (int64, error) {
-	timestamp_end := (time.Now().Add(- ttl)).UnixNano() / 1000000
+	timestamp_end := (time.Now().Add(-ttl)).UnixNano() / 1000000
 	logger.Printf("Edge timestamp for deletion is %d\n", timestamp_end)
 	delete_stmt := fmt.Sprint(PREPARED_DELETE, timestamp_end)
 	result, err := manager.db.Exec(delete_stmt)
@@ -52,16 +75,11 @@ func (manager *DBManager) clearDB(ttl time.Duration) (int64, error) {
 }
 
 func (manager *DBManager) insert(msg *LogMessage) (int64, error) {
-	stmt, err := manager.db.Prepare(PREPARED_INSERT)
-	if err != nil {
-		return 0, errors.New("Error while preparing instert: " + err.Error())
-	}
-	defer stmt.Close()
 	level, ok := _levelNames[strings.ToUpper(msg.Level)]
 	if !ok {
 		level = NOTSET
 	}
-	result, err := stmt.Exec(msg.Publisher, level, msg.Message, msg.TimeStamp)
+	result, err := manager.preparedInsert.Exec(msg.Publisher, level, msg.Message, msg.TimeStamp)
 	if err != nil {
 		return 0, errors.New("Error while executing instert: " + err.Error())
 	}
@@ -79,8 +97,7 @@ func (manager *DBManager) query(request *GetLogsRequest) (*GetLogsResponse, erro
 		return nil, errors.New("Error while executing query: " + err.Error())
 	}
 	defer rows.Close()
-
-	logs := make([]LogMessage, 0, 10)
+	logs := make([]LogMessage, 0, 128)
 	var response GetLogsResponse
 	for rows.Next() {
 		var lvl int
