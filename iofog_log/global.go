@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	DB_LOCATION              = "./log/"
+	DB_LOCATION              = "/log/"
 	DB_NAME                  = "iofog.logs.db"
 	TABLE_NAME               = "logs"
 	ID_COLUMN_NAME           = "id"
