@@ -22,7 +22,7 @@ func newDBManager() (*DBManager, error) {
 		return nil, err
 	}
 
-	//db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(1)
 	manager := new(DBManager)
 	manager.db = db
 	manager.stopChannel = make(chan int)
@@ -33,10 +33,9 @@ func newDBManager() (*DBManager, error) {
 	if _, err = db.Exec("PRAGMA journal_mode=WAL;"); err != nil {
 		logger.Println("Error while enabling WAL:", err.Error())
 	}
-	if _, err = db.Exec("PRAGMA synchronous=NORMAL;"); err != nil {
+	if _, err = db.Exec("PRAGMA synchronous=OFF;"); err != nil {
 		logger.Println("Error while setting NORMAL synchronous:", err.Error())
 	}
-
 	if stmt, err := manager.db.Prepare(PREPARED_INSERT); err != nil {
 		db.Close()
 		return nil, errors.New("Error while preparing instert:" + err.Error())
