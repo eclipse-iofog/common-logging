@@ -39,6 +39,9 @@ func newDBManager() (*DBManager, error) {
 	if _, err = db.Exec("PRAGMA temp_store=MEMORY;"); err != nil {
 		logger.Println("Error while setting temp_store=MEMORY:", err.Error())
 	}
+	if _, err = db.Exec("PRAGMA locking_mode=EXCLUSIVE;"); err != nil {
+		logger.Println("Error while setting locking_mode=EXCLUSIVE:", err.Error())
+	}
 	if stmt, err := manager.db.Prepare(PREPARED_INSERT); err != nil {
 		db.Close()
 		return nil, errors.New("Error while preparing instert:" + err.Error())
