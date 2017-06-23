@@ -31,10 +31,13 @@ func newDBManager() (*DBManager, error) {
 		return nil, err
 	}
 	if _, err = db.Exec("PRAGMA journal_mode=WAL;"); err != nil {
-		logger.Println("Error while enabling WAL:", err.Error())
+		logger.Println("Error while setting journal_mode=WAL:", err.Error())
 	}
 	if _, err = db.Exec("PRAGMA synchronous=OFF;"); err != nil {
-		logger.Println("Error while setting NORMAL synchronous:", err.Error())
+		logger.Println("Error while setting synchronous=OFF:", err.Error())
+	}
+	if _, err = db.Exec("PRAGMA temp_store=MEMORY;"); err != nil {
+		logger.Println("Error while setting temp_store=MEMORY:", err.Error())
 	}
 	if stmt, err := manager.db.Prepare(PREPARED_INSERT); err != nil {
 		db.Close()
