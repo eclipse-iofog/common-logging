@@ -1,8 +1,8 @@
 package iofog_log
 
 import (
-	"sync"
 	"encoding/json"
+	"sync"
 )
 
 type LoggerSystem struct {

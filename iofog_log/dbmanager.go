@@ -17,7 +17,7 @@ type DBManager struct {
 }
 
 func newDBManager() (*DBManager, error) {
-	db, err := sql.Open("sqlite3", "file:" + DB_LOCATION + DB_NAME + "?cache=shared&mode=rwc")
+	db, err := sql.Open("sqlite3", "file:"+DB_LOCATION+DB_NAME+"?cache=shared&mode=rwc")
 	if err != nil {
 		return nil, err
 	}
@@ -26,10 +26,14 @@ func newDBManager() (*DBManager, error) {
 	manager := new(DBManager)
 	manager.db = db
 	manager.stopChannel = make(chan int)
+
+	// create table if it doesn't exist yet
 	if _, err = db.Exec(PREPARED_CREATE_TABLE); err != nil {
 		db.Close()
 		return nil, err
 	}
+
+	// define pragmas for performance increase
 	if _, err = db.Exec("PRAGMA journal_mode=WAL;"); err != nil {
 		logger.Println("Error while setting journal_mode=WAL:", err.Error())
 	}
@@ -42,12 +46,29 @@ func newDBManager() (*DBManager, error) {
 	if _, err = db.Exec("PRAGMA locking_mode=EXCLUSIVE;"); err != nil {
 		logger.Println("Error while setting locking_mode=EXCLUSIVE:", err.Error())
 	}
+
+	// create indexes if they don't exist yet
+	for _, field := range INDEXED_FIELDS {
+		if _, err = db.Exec(fmt.Sprintf(PREPARED_CREATE_INDEX, field, TABLE_NAME, field)); err != nil {
+			logger.Printf("Error while creatung index on %s: %s", field, err.Error())
+		}
+	}
+	for _, field_pair := range INDEXED_PAIRS {
+		if _, err = db.Exec(fmt.Sprintf(PREPARED_CREATE_TWO_COL_INDEX, field_pair[0], field_pair[1],
+			TABLE_NAME, field_pair[0], field_pair[1])); err != nil {
+			logger.Printf("Error while creatung two coluimn index on %s_%s: %s",
+				field_pair[0], field_pair[1], err.Error())
+		}
+	}
+
+	// prepare insert statement
 	if stmt, err := manager.db.Prepare(PREPARED_INSERT); err != nil {
 		db.Close()
 		return nil, errors.New("Error while preparing instert:" + err.Error())
 	} else {
 		manager.preparedInsert = stmt
 	}
+
 	return manager, nil
 }
 
@@ -80,7 +101,7 @@ func (manager *DBManager) clearDB(ttl time.Duration) (int64, error) {
 }
 
 func (manager *DBManager) insert(msg *LogMessage) (int64, error) {
-	level, ok := _levelNames[strings.ToUpper(msg.Level)]
+	level, ok := levelNames[strings.ToUpper(msg.Level)]
 	if !ok {
 		level = NOTSET
 	}
@@ -96,6 +117,25 @@ func (manager *DBManager) query(request *GetLogsRequest) (*GetLogsResponse, erro
 	if err != nil {
 		return nil, err
 	}
+
+	// debug
+	//logger.Println(select_stmt)
+	//plan_rows, err := manager.db.Query("EXPLAIN QUERY PLAN " + select_stmt)
+	//if err != nil {
+	//	logger.Println(err.Error())
+	//	return nil, errors.New("Error while executing query plan: " + err.Error())
+	//}
+	//defer plan_rows.Close()
+	//for plan_rows.Next() {
+	//	var foo int
+	//	var detail string
+	//	err = plan_rows.Scan(&foo, &foo, &foo, &detail)
+	//	if err != nil {
+	//		logger.Println(err)
+	//	}
+	//	logger.Printf("Plan : %s\n", detail)
+	//}
+
 	rows, err := manager.db.Query(select_stmt)
 	if err != nil {
 		logger.Println(err.Error())
@@ -111,7 +151,7 @@ func (manager *DBManager) query(request *GetLogsRequest) (*GetLogsResponse, erro
 		if err != nil {
 			logger.Println(err)
 		}
-		logMsg.Level = _levelNames[lvl].(string)
+		logMsg.Level = levelNames[lvl].(string)
 		logs = append(logs, logMsg)
 
 	}

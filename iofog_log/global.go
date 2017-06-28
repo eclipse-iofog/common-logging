@@ -42,8 +42,8 @@ const (
 )
 
 var (
-	logger      = log.New(os.Stderr, "", log.LstdFlags)
-	_levelNames = map[interface{}]interface{}{
+	logger     = log.New(os.Stderr, "", log.LstdFlags)
+	levelNames = map[interface{}]interface{}{
 		CRITICAL:   "CRITICAL",
 		ERROR:      "ERROR",
 		WARNING:    "WARNING",
@@ -61,8 +61,22 @@ var (
 		"":         NOTSET,
 	}
 
-	ORDER_BY_FIELDS = []string{PUBLISHER_ID_COLUMN_NAME, LOG_LEVEL_COLUMN_NAME,
-		LOG_MESSAGE_COLUMN_NAME, TIMESTAMP_COLUMN_NAME}
+	LOG_FIELDS = []string{
+		PUBLISHER_ID_COLUMN_NAME,
+		LOG_LEVEL_COLUMN_NAME,
+		LOG_MESSAGE_COLUMN_NAME,
+		TIMESTAMP_COLUMN_NAME,
+	}
+
+	INDEXED_FIELDS = []string{
+		PUBLISHER_ID_COLUMN_NAME,
+		LOG_MESSAGE_COLUMN_NAME,
+		TIMESTAMP_COLUMN_NAME,
+	}
+
+	INDEXED_PAIRS = [][]string{
+		{TIMESTAMP_COLUMN_NAME, LOG_LEVEL_COLUMN_NAME},
+	}
 
 	PREPARED_CREATE_TABLE = fmt.Sprintf(`create table if not exists %s(%s INTEGER PRIMARY KEY AUTOINCREMENT,
 							                   %s TEXT NOT NULL CHECK(%s <> ""),
@@ -74,14 +88,17 @@ var (
 		LOG_LEVEL_COLUMN_NAME,
 		TIMESTAMP_COLUMN_NAME, TIMESTAMP_COLUMN_NAME)
 
+	PREPARED_CREATE_INDEX         = "create index if not exists indx_%s on %s(%s)"
+	PREPARED_CREATE_TWO_COL_INDEX = "create index if not exists indx_%s_%s on %s(%s, %s)"
+
 	PREPARED_INSERT = fmt.Sprintf(`insert into %s(%s,%s,%s,%s) values(?, ?, ?, ?)`,
 		TABLE_NAME, PUBLISHER_ID_COLUMN_NAME, LOG_LEVEL_COLUMN_NAME,
 		LOG_MESSAGE_COLUMN_NAME, TIMESTAMP_COLUMN_NAME)
 
 	PREPARED_DELETE = fmt.Sprintf("delete from %s where %s <= ", TABLE_NAME, TIMESTAMP_COLUMN_NAME)
 
-	PREPARED_SELECT = fmt.Sprintf("select %s,%s,%s,%s", PUBLISHER_ID_COLUMN_NAME, LOG_MESSAGE_COLUMN_NAME,
-		LOG_LEVEL_COLUMN_NAME, TIMESTAMP_COLUMN_NAME)
+	PREPARED_SELECT = fmt.Sprintf("select %s,%s,%s,%s from %s", PUBLISHER_ID_COLUMN_NAME, LOG_MESSAGE_COLUMN_NAME,
+		LOG_LEVEL_COLUMN_NAME, TIMESTAMP_COLUMN_NAME, TABLE_NAME)
 )
 
 type LogMessage struct {
