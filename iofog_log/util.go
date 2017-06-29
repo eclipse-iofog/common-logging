@@ -37,13 +37,13 @@ func buildQuery(request *GetLogsRequest) (string, error) {
 	}
 	var orderBy string
 	order := DESC
-	if request.OrderBy != nil {
-		orderBy = strings.Join(request.OrderBy, `, `)
-	} else {
-		orderBy = DEFAULT_ORDER_BY
-	}
 	if request.Asc {
 		order = ASC
+	}
+	if request.OrderBy != nil {
+		orderBy = strings.Join(request.OrderBy, " " + order + ` , `)
+	} else {
+		orderBy = DEFAULT_ORDER_BY
 	}
 
 	fmt.Fprintf(&select_stmt, ` order by %s %s limit %d offset %d`, orderBy, order, request.PageSize, (request.Page-1)*request.PageSize)

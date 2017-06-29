@@ -48,16 +48,11 @@ func newDBManager() (*DBManager, error) {
 	}
 
 	// create indexes if they don't exist yet
-	for _, field := range INDEXED_FIELDS {
-		if _, err = db.Exec(fmt.Sprintf(PREPARED_CREATE_INDEX, field, TABLE_NAME, field)); err != nil {
-			logger.Printf("Error while creatung index on %s: %s", field, err.Error())
-		}
-	}
-	for _, field_pair := range INDEXED_PAIRS {
-		if _, err = db.Exec(fmt.Sprintf(PREPARED_CREATE_TWO_COL_INDEX, field_pair[0], field_pair[1],
-			TABLE_NAME, field_pair[0], field_pair[1])); err != nil {
-			logger.Printf("Error while creatung two coluimn index on %s_%s: %s",
-				field_pair[0], field_pair[1], err.Error())
+	for _, cover := range COVERING_INDEX_FIELDS {
+		if _, err = db.Exec(fmt.Sprintf(PREPARED_CREATE_COVERING_INDEX, cover[0], cover[1], cover[2], cover[3],
+			TABLE_NAME,  cover[0], cover[1], cover[2], cover[3])); err != nil {
+			logger.Printf("Error while creatung three coluimn index on %s_%s_%s_%s: %s",
+				cover[0], cover[1], cover[2], cover[3], err.Error())
 		}
 	}
 
