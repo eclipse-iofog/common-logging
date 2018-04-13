@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	sdk "github.com/iotracks/container-sdk-go"
-	"github.com/iotracks/logging-system-container/iofog_log"
+	sdk "github.com/ioFog/iofog-go-sdk"
+	"./iofog_log"
 	"log"
 	"net/http"
 )
