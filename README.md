@@ -26,7 +26,7 @@ Config explanation:
 
 **Add logs Endpoint (Post)**
 
-```localhost:10555/logs/add```
+```localhost:[mapped_port]/logs/add```
 
 
 Use access-token parameter provided from container config in Headers.
@@ -60,7 +60,7 @@ POST parameters description
 
 **Get logs Endpoint (Post)**
 
-```localhost:10555/logs/get```
+```localhost:[mapped_port]/logs/get```
 
 
 Use access-token parameter provided from container config in Headers.
