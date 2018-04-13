@@ -1,4 +1,4 @@
-#Logging Container
+# Logging Container
 
 Logging Container is a system container that gathers logs and provides REST API for adding and querying logs from containers. 
 
