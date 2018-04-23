@@ -2,7 +2,9 @@
 
 Logging Container is a system container that gathers logs and provides REST API for adding and querying logs from containers. 
 
-Use Logger Container if you want to gather all the logs and find them easily. 
+Use Logger Container if you want to gather all the logs and find them easily.
+
+As internal port use 54322.
 
 ### Config:
 
