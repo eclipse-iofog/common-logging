@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	sdk "github.com/ioFog/iofog-go-sdk"
-	"./iofog_log"
+	"github.com/ioFog/common-logging/iofog_log"
 	"log"
 	"net/http"
 )
