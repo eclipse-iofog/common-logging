@@ -16,3 +16,5 @@
 .glide/
 
 /.idea/
+*.iml
+logging
